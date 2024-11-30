@@ -1,0 +1,13 @@
+services:
+  backend:
+    deploy:
+      resources:
+        limits:
+          cpus: "12.0"
+          memory: 8g
+    build: .
+    command: fastapi dev server.py --host 0.0.0.0 --port 8081
+    volumes:
+      - ./src:/app
+    ports:
+      - "8081:8081"
