@@ -10,7 +10,7 @@ RUN pip install sentence_transformers
 RUN pip install langchain chromadb langchain-community
 RUN pip install pypdf
 RUN python -c "from gpt4all import GPT4All; GPT4All('Llama-3.2-3B-Instruct-Q4_0.gguf')"
-
+RUN pip install langchainhub langchain-chroma bs4
 
 RUN apt update && apt install htop -y
 

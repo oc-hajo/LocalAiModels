@@ -1,67 +1,84 @@
+import bs4
+from langchain import hub
+from langchain_chroma import Chroma
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.llms import GPT4All
+from langchain_community.embeddings import GPT4AllEmbeddings
+from langchain_core.prompts import PromptTemplate
 import os
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.embeddings import SentenceTransformerEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain.chains import RetrievalQA
-from langchain_community.llms import GPT4All
 
-# Step 1: Load PDF Files
-def load_pdfs_from_directory(directory):
-    documents = []
-    for filename in os.listdir(directory):
-        if filename.endswith(".pdf"):
-            pdf_path = os.path.join(directory, filename)
-            loader = PyPDFLoader(pdf_path)
-            documents.extend(loader.load())
-    return documents
 
-# Step 2: Compute Embeddings and Create Vectorstore
-def create_vectorstore(documents, embedding_model_name="all-MiniLM-L6-v2", persist_directory=None):
-    embedding_model = SentenceTransformerEmbeddings(model_name=embedding_model_name)
-    if persist_directory:
-        vectorstore = Chroma.from_documents(documents, embedding_model, persist_directory=persist_directory)
-    else:
-        vectorstore = Chroma.from_documents(documents, embedding_model)
-    return vectorstore
+def log(text):
+    print("\n\n\n"+text)
 
-# Step 3: Initialize GPT4All and Create QA Chain
-def initialize_qa_chain(vectorstore, model_path):
-    llm = GPT4All(model=model_path)
-    retriever = vectorstore.as_retriever()
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
-    return qa_chain
+def load_documents():
+    log("load documents")
+    folder_path = "files"
+    all_docs = []
+    for file_name in os.listdir(folder_path):
+        if file_name.endswith(".pdf"):
+            file_path = os.path.join(folder_path, file_name)
+            loader = PyPDFLoader(file_path=file_path)
+            docs = loader.load()
+            all_docs.extend(docs)
+    return all_docs
 
-# Step 4: Query the Chain
-def query_qa_chain(qa_chain, query):
-    return qa_chain.run(query)
 
-if __name__ == "__main__":
-    # Directory containing PDF files
-    pdf_directory = "files/"
-    
-    # Path to GPT4All model
-    gpt4all_model_path = "/root/.cache/gpt4all/Llama-3.2-3B-Instruct-Q4_0.gguf"
-    
-    # Directory to persist embeddings (optional)
-    persist_directory = "db"
-    
-    # Load documents from PDFs
-    print("Loading PDF files...")
-    documents = load_pdfs_from_directory(pdf_directory)
-    
-    # Compute embeddings and create vectorstore
-    print("Creating vectorstore...")
-    vectorstore = create_vectorstore(documents, persist_directory=persist_directory)
-    
-    # Initialize the QA chain
-    print("Initializing QA chain...")
-    qa_chain = initialize_qa_chain(vectorstore, gpt4all_model_path)
-    
-    # Query the chain
-    while True:
-        user_query = input("Enter your query (or type 'exit' to quit): ")
-        if user_query.lower() == "exit":
-            print("Exiting...")
-            break
-        response = query_qa_chain(qa_chain, user_query)
-        print("\nResponse:", response, "\n")
+file = "./chroma_db"
+if os.path.exists(file):
+    vectorstore = Chroma(persist_directory=file, embedding_function=GPT4AllEmbeddings())
+else:
+    docs = load_documents()
+    log("split documents")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
+    log("save vectorestore to file")
+    vectorstore = Chroma.from_documents(documents=splits, embedding=GPT4AllEmbeddings(), persist_directory=file)
+
+
+
+
+
+retriever = vectorstore.as_retriever()
+#retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 6})
+#retrieved_docs = retriever.invoke("What are the approaches to Task Decomposition?")
+#print(retrieved_docs[0])
+#print("\n\n")
+#print(retrieved_docs[1])
+
+prompt = hub.pull("rlm/rag-prompt")
+
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
+log("load llm")
+
+llm = GPT4All(model="/root/.cache/gpt4all/Llama-3.2-3B-Instruct-Q4_0.gguf")
+
+template = """Use the following pieces of context to answer the question at the end.
+If you don't know the answer, just say that you don't know, don't try to make up an answer.
+Use three sentences maximum and keep the answer as concise as possible.
+Always say "thanks for asking!" at the end of the answer.
+
+{context}
+
+Question: {question}
+
+Helpful Answer:"""
+custom_rag_prompt = PromptTemplate.from_template(template)
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | custom_rag_prompt
+    | llm
+    | StrOutputParser()
+)
+
+
+def document_search(query: str):
+    print("document search going on")
+    for chunk in rag_chain.stream(query):
+        yield chunk
