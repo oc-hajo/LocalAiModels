@@ -1,4 +1,5 @@
-src/db/
+src/chroma_db/
+src/files
 env/
 **/__pycache__/**
 

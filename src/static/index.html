@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Backend Frontend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+        header {
+            background-color: #6200ea;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        .container {
+            padding: 20px;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            background-color: #f4f4f9;
+        }
+        .tab.active {
+            background-color: white;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .output {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            height: 200px;
+            overflow-y: auto;
+        }
+        .card {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .score {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .score[data-score="high"] {
+            color: green;
+        }
+        .score[data-score="medium"] {
+            color: orange;
+        }
+        .score[data-score="low"] {
+            color: red;
+        }
+        .button {
+            background-color: #6200ea;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        .button:disabled {
+            background-color: #ccc;
+        }
+        .spinner {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #6200ea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        .spinner.active {
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>AI Backend Frontend</h1>
+</header>
+<div class="container">
+    <div class="tabs">
+        <div class="tab active" data-tab="query-stream">Query Stream</div>
+        <div class="tab" data-tab="document-search">Document Search</div>
+        <div class="tab" data-tab="search-symmetric">Symmetric Search</div>
+        <div class="tab" data-tab="search-asymmetric">Asymmetric Search</div>
+    </div>
+    <div id="query-stream" class="tab-content active">
+        <h2>Query Stream</h2>
+        <label for="query-stream-input">Prompt:</label>
+        <textarea id="query-stream-input" rows="4" style="width: 100%;"></textarea>
+        <button id="query-stream-send" class="button">Send</button>
+        <div class="spinner" id="query-stream-spinner"></div>
+        <p>Time taken: <span id="query-stream-time">-</span></p>
+        <div id="query-stream-output" class="output"></div>
+        <p id="query-stream-error" class="error"></p>
+    </div>
+    <div id="document-search" class="tab-content">
+        <h2>Document Search</h2>
+        <label for="document-search-input">Prompt:</label>
+        <textarea id="document-search-input" rows="4" style="width: 100%;"></textarea>
+        <button id="document-search-send" class="button">Send</button>
+        <div class="spinner" id="document-search-spinner"></div>
+        <p>Time taken: <span id="document-search-time">-</span></p>
+        <div id="document-search-output" class="output"></div>
+        <p id="document-search-error" class="error"></p>
+    </div>
+    <div id="search-symmetric" class="tab-content">
+        <h2>Symmetric Search</h2>
+        <label for="symmetric-input">Query:</label>
+        <input type="text" id="symmetric-input" style="width: 100%; margin-bottom: 10px;">
+        <button id="symmetric-send" class="button">Search</button>
+        <div id="symmetric-output" class="output"></div>
+        <p id="symmetric-error" class="error"></p>
+    </div>
+    <div id="search-asymmetric" class="tab-content">
+        <h2>Asymmetric Search</h2>
+        <label for="asymmetric-input">Query:</label>
+        <input type="text" id="asymmetric-input" style="width: 100%; margin-bottom: 10px;">
+        <button id="asymmetric-send" class="button">Search</button>
+        <div id="asymmetric-output" class="output"></div>
+        <p id="asymmetric-error" class="error"></p>
+    </div>
+</div>
+<script>
+    const tabs = document.querySelectorAll('.tab');
+    const contents = document.querySelectorAll('.tab-content');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    async function handleStreamRequest(endpoint, inputId, outputId, timeId, buttonId, spinnerId, errorId) {
+        const inputField = document.getElementById(inputId);
+        const outputField = document.getElementById(outputId);
+        const timeField = document.getElementById(timeId);
+        const button = document.getElementById(buttonId);
+        const spinner = document.getElementById(spinnerId);
+        const errorField = document.getElementById(errorId);
+
+        const prompt = inputField.value;
+        if (!prompt.trim()) return;
+
+        button.disabled = true;
+        spinner.classList.add('active');
+        outputField.textContent = '';
+        errorField.textContent = '';
+        const startTime = Date.now();
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt }),
+            });
+
+            if (!response.ok) throw new Error(`Error: ${response.statusText}`);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let done = false;
+
+            while (!done) {
+                const { value, done: readerDone } = await reader.read();
+                done = readerDone;
+                if (value) {
+                    outputField.textContent += decoder.decode(value);
+                }
+            }
+
+            const endTime = Date.now();
+            timeField.textContent = `${((endTime - startTime) / 1000).toFixed(2)} seconds`;
+        } catch (error) {
+            errorField.textContent = error.message;
+        } finally {
+            button.disabled = false;
+            spinner.classList.remove('active');
+        }
+    }
+
+    async function handleSearchRequest(endpoint, inputId, outputId, errorId) {
+        const inputField = document.getElementById(inputId);
+        const outputField = document.getElementById(outputId);
+        const errorField = document.getElementById(errorId);
+
+        const query = inputField.value;
+        if (!query.trim()) return;
+
+        outputField.textContent = 'Loading...';
+        errorField.textContent = '';
+
+        try {
+            const response = await fetch(endpoint + encodeURIComponent(query));
+            if (!response.ok) throw new Error(`Error: ${response.statusText}`);
+            const results = await response.json();
+
+            outputField.innerHTML = results.map(([score, value]) => {
+                const scoreClass = score > 0.7 ? "high" : score > 0.4 ? "medium" : "low";
+                return `<div class="card"><span class="score" data-score="${scoreClass}">Score: ${score.toFixed(2)}</span><p>${value}</p></div>`;
+            }).join('');
+        } catch (error) {
+            errorField.textContent = error.message;
+        }
+    }
+
+    document.getElementById('query-stream-send').addEventListener('click', () =>
+        handleStreamRequest('/query_stream', 'query-stream-input', 'query-stream-output', 'query-stream-time', 'query-stream-send', 'query-stream-spinner', 'query-stream-error')
+    );
+
+    document.getElementById('document-search-send').addEventListener('click', () =>
+        handleStreamRequest('/document_search', 'document-search-input', 'document-search-output', 'document-search-time', 'document-search-send', 'document-search-spinner', 'document-search-error')
+    );
+
+    document.getElementById('symmetric-send').addEventListener('click', () =>
+        handleSearchRequest('/search_sym/', 'symmetric-input', 'symmetric-output', 'symmetric-error')
+    );
+
+    document.getElementById('asymmetric-send').addEventListener('click', () =>
+        handleSearchRequest('/search_asym/', 'asymmetric-input', 'asymmetric-output', 'asymmetric-error')
+    );
+</script>
+</body>
+</html>

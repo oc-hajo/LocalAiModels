@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
+import semantic_search
 from starlette.responses import FileResponse 
 from pydantic import BaseModel
-import local_llm
 import local_llm_embeddings
-import semantic_search
+import local_llm
 
 # Define the input schema
 class QueryRequest(BaseModel):
@@ -14,6 +14,12 @@ class QueryRequest(BaseModel):
 # Initialize FastAPI app
 app = FastAPI()
 
+@app.on_event("startup")
+async def startup_event():
+    print("init semantic search")
+    semantic_search.init()
+    print("init embeddings")
+    local_llm_embeddings.init()
 
 @app.post("/query_stream")
 async def query_gpt4all_stream(request: QueryRequest):

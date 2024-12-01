@@ -1,6 +1,11 @@
 import gpt4all
 import asyncio
 
+from langchain_community.llms import GPT4All
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain_core.prompts import PromptTemplate
+
+
 async def generate_stream(prompt: str, max_tokens: int):
     """
     Async generator to stream response from GPT4All.
